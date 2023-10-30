@@ -7,6 +7,8 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"time"
 
@@ -98,7 +100,7 @@ func main() {
 		cli.StringFlag{
 			Name:  "remoteaddr, r",
 			Value: "vps:29900",
-			Usage: "kcp server address",
+			Usage: `kcp server address, eg: "IP:29900" a for single port, "IP:minport-maxport" for port range`,
 		},
 		cli.StringFlag{
 			Name:   "key",
@@ -243,6 +245,10 @@ func main() {
 			Value: "", // when the value is not empty, the config path must exists
 			Usage: "config from json file, which will override the command from shell",
 		},
+		cli.BoolFlag{
+			Name:  "pprof",
+			Usage: "start profiling server on :6060",
+		},
 	}
 	myApp.Action = func(c *cli.Context) error {
 		config := Config{}
@@ -276,6 +282,7 @@ func main() {
 		config.SnmpPeriod = c.Int("snmpperiod")
 		config.Quiet = c.Bool("quiet")
 		config.TCP = c.Bool("tcp")
+		config.Pprof = c.Bool("pprof")
 
 		if c.String("c") != "" {
 			err := parseJSONConfig(&config, c.String("c"))
@@ -341,6 +348,7 @@ func main() {
 		log.Println("snmpperiod:", config.SnmpPeriod)
 		log.Println("quiet:", config.Quiet)
 		log.Println("tcp:", config.TCP)
+		log.Println("pprof:", config.Pprof)
 
 		// parameters check
 		if config.SmuxVer > maxSmuxVer {
@@ -442,6 +450,11 @@ func main() {
 
 		// start snmp logger
 		go generic.SnmpLogger(config.SnmpLog, config.SnmpPeriod)
+
+		// start pprof
+		if config.Pprof {
+			go http.ListenAndServe(":6060", nil)
+		}
 
 		// start scavenger
 		chScavenger := make(chan timedSession, 128)
